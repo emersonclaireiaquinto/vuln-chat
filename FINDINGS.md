@@ -16,6 +16,10 @@ The system has two configurable retrieval backends:
 
 - **LightRAG** — hybrid knowledge graph + vector search. Builds entity-relationship graphs from CVE text using LLM extraction, enabling multi-hop reasoning ("Which vulnerabilities share the same CWE?") and broader pattern queries. More expensive to index (requires LLM calls during ingestion) but better at relational queries.
 
+
+Why did I decide to add an entire extra knowledge base?
+Personally, knowledge graphs have been a personal fascination of mine, and despite the downsides (mostly latency), I believe more systems should be using them in place of vector databases. This is one of those scenarios, where the source data (CVEs) contain extremely niche, highly technical language that is difficult for embedding models to exctact semantic info from. Knowledge graphs excel at this type of task, where you have an underlying structure to denote relationships between different vulnerabilities (affected software, threat vectors, etc) We'll see later that yes, a knowledge graph outperforms a vector database, despite the small size of the index. (knowledge graphs have been proven to become more effective compared to vector databases as they both scale.)
+
 The two retrieval backends must be handled differently on ingest. 
 Vector databases struggle with structured data due to pollution of shared structure and keys, and the irregularity of the text. Embedding models are tuned to extract semantic information from long form, unstructured text.
 
@@ -99,8 +103,10 @@ This approach trades a small amount of evaluation cost (each judgment requires a
     -H "Content-Type: application/json" \
     -d '{"cve_ids": ["CVE-2024-3094", "CVE-2023-44487"]}'`
 
-4. Run `evaluation/generate_testset.ipynb` to generate synthetic test data
-5. Run `evaluation/eval.ipynb` to run the evaluation framework against both retrievers
+4. At this point, you'll be able to view the knowledge graph and explore the data you just ingested at http://localhost:9621. You'll be able to see the underlying graph structure with the entities, mapped to the custom entity types I created, are connected to each other by their edges.
+
+5. Run `evaluation/generate_testset.ipynb` to generate synthetic test data
+6. Run `evaluation/eval.ipynb` to run the evaluation framework against both retrievers
 
 ---
 
@@ -124,7 +130,7 @@ Across both retrievers, synthetic test cases score consistently lower than manua
 
 **With another 4 hours:**
 
-- **System Prompt Tuning** Across the application, there are 12 different system prompts being utilized. 1 for the main chat agent, 3 for synthetic test generation, 5 for evaluation/judge, and 3 within LightRAG. Each of these system prompts will have a dramatic effect on model output.
+- **System Prompt Tuning** Across the application, there are 12 different system prompts being utilized. 1 for the main chat agent, 3 for synthetic test generation, 5 for evaluation/judge, and 3 within LightRAG. Each of these system prompts will have a dramatic effect on model output. The chat agent system prompt specifically is a bit lacking, and as such would be my primary target for enforcing stricter trained knowledge guidelines to lower the risk of hallucinations. Each of the evaluator system prompts should ideally have hand-crafted examples at different score levels for each metric, thowing golden examples to enforce the meaning behind a score. The synthetic test generator falls into the same bucket, a few more hand crafted examples to show good vs bad question/answer pairs. 
 
 - **Parameter Tuning** Similarly, parameter tuning is incredibly important, especially in RAG applications, where you typically have hard thresholds for document retrieval cutoff. Most notable of these is top-k, which limits how many documents get retrieved during any semantic search. Because these are hard thresholds, you must try to find the balance between too much and too little context, each of which can be extremely harmful for cost, latency, and quality. Reranking alleviates some of this, but it comes with its own set of thresholds that need careful tuning.
 
