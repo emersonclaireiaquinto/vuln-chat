@@ -1,0 +1,66 @@
+services:
+  faiss:
+    build: ./faiss
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+      - RERANK_MODEL=${RERANK_MODEL}
+      - RERANK_HOST=${RERANK_HOST}
+      - RERANK_API_KEY=${RERANK_API_KEY}
+      - RERANK_THRESHOLD=${RERANK_THRESHOLD}
+    volumes:
+      - faiss-data:/app/faiss_index
+
+  lightrag:
+    build: ./LightRAG
+    ports:
+      - "9621:9621"
+    env_file:
+      - ./LightRAG/.env
+    environment:
+      - LLM_BINDING_API_KEY=${OPENAI_API_KEY}
+      - EMBEDDING_BINDING_API_KEY=${OPENAI_API_KEY}
+      - LLM_BINDING_HOST=${OPENAI_BASE_URL}
+      - LLM_MODEL=${CHAT_MODEL}
+      - EMBEDDING_DIM=${EMBEDDING_DIM}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+    volumes:
+      - lightrag-data:/app/data/rag_storage
+      - lightrag-inputs:/app/data/inputs
+
+  vuln-loader:
+    build: ./vuln_loader
+    ports:
+      - "8001:8001"
+    environment:
+      - NVD_API_KEY=${NVD_API_KEY}
+      - FAISS_URL=http://faiss:8000
+      - LIGHTRAG_URL=http://lightrag:9621
+    depends_on:
+      - faiss
+      - lightrag
+
+  vuln-agent:
+    build: ./vuln_agent
+    ports:
+      - "8002:8002"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - CHAT_MODEL=${CHAT_MODEL}
+      - FAISS_URL=http://faiss:8000
+      - LIGHTRAG_URL=http://lightrag:9621
+      - TOP_K=${TOP_K:-4}
+      - RERANK=${RERANK:-false}
+      - USE_RESPONSES=${USE_RESPONSES}
+    depends_on:
+      - faiss
+      - lightrag
+
+volumes:
+  faiss-data:
+  lightrag-data:
+  lightrag-inputs:
